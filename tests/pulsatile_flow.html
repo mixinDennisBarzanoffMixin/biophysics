@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulsatile Flow Simulation</title>
+    <!-- React & Tailwind -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom Scrollbar for the sidebar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 0 0 2px #1e293b; 
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none; 
+        }
+        input[type=range]:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 2px #60a5fa, 0 0 0 4px #1e293b;
+        }
+        /* Firefox styles */
+        input[type=range]::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            border: none;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 0 2px #1e293b;
+        }
+        input[type=range]::-moz-range-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 2px;
+        }
+
+        .canvas-container {
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background: #1e293b;
+        }
+        
+        .math-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            transition: all 0.2s;
+        }
+        .math-card:hover {
+            border-color: #475569;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- COMPONENTS ---
+
+        // Simple KaTeX Wrapper
+        const Latex = ({ children, block = false }) => {
+            const containerRef = useRef(null);
+            useEffect(() => {
+                if (window.katex && containerRef.current) {
+                    window.katex.render(children, containerRef.current, {
+                        throwOnError: false,
+                        displayMode: block
+                    });
+                }
+            }, [children, block]);
+            return <span ref={containerRef} />;
+        };
+
+        const Slider = ({ label, value, min, max, step, onChange, unit }) => (
+            <div className="flex flex-col mb-4">
+                <div className="flex justify-between mb-1">
+                    <label className="text-sm font-medium text-slate-300">{label}</label>
+                    <span className="text-sm text-slate-400 font-mono">{Number.isInteger(value) ? value : value.toFixed(2)} {unit}</span>
+                </div>
+                <input 
+                    type="range" 
+                    min={min} 
+                    max={max} 
+                    step={step} 
+                    value={value} 
+                    onChange={(e) => onChange(parseFloat(e.target.value))}
+                    className="w-full"
+                />
+            </div>
+        );
+
+        // --- MAIN SIMULATION ---
+
+        const PulsatileFlow = () => {
+            // -- State --
+            const [heartRate, setHeartRate] = useState(60); 
+            const [systolicPressure, setSystolicPressure] = useState(120);
+            const [diastolicPressure, setDiastolicPressure] = useState(80);
+            const [vesselStiffness, setVesselStiffness] = useState(0.5);
+            const [peripheralResistance, setPeripheralResistance] = useState(1.0);
+            const [viscosity, setViscosity] = useState(1.0);
+            
+            const [baseRadius, setBaseRadius] = useState(60);
+            const [systoleDuration, setSystoleDuration] = useState(0.3);
+
+            // Advanced
+            const [particleCount, setParticleCount] = useState(300);
+            const [velocityScale, setVelocityScale] = useState(2.5);
+            const [complianceScale, setComplianceScale] = useState(0.5);
+            const [notchSize, setNotchSize] = useState(0.1);
+            const [showAdvanced, setShowAdvanced] = useState(false);
+
+            // Live Data for React UI (Physics Phase)
+            const [currentPhase, setCurrentPhase] = useState(0);
+
+            // Refs
+            const paramsRef = useRef({});
+            
+            // Sync Refs
+            useEffect(() => {
+                paramsRef.current = {
+                    heartRate, systolicPressure, diastolicPressure, 
+                    vesselStiffness, peripheralResistance, viscosity,
+                    baseRadius, systoleDuration,
+                    particleCount, velocityScale, complianceScale, notchSize
+                };
+            }, [heartRate, systolicPressure, diastolicPressure, vesselStiffness, peripheralResistance, viscosity, 
+                baseRadius, systoleDuration, particleCount, velocityScale, complianceScale, notchSize]);
+
+            const canvasRef = useRef(null);
+            const graphCanvasRef = useRef(null);
+            const complianceCanvasRef = useRef(null);
+            const resistanceCanvasRef = useRef(null);
+            
+            // New Canvases for Part 2
+            const powerLawCanvasRef = useRef(null);
+            const reynoldsCanvasRef = useRef(null);
+            const tensionCanvasRef = useRef(null);
+
+            const statsRef = useRef(null);
+            const requestIdRef = useRef(null);
+            
+            // Simulation State
+            const stateRef = useRef({
+                phase: 0,
+                particles: [],
+                time: 0
+            });
+            const historyRef = useRef([]); 
+
+            // Initialize Particles
+            useEffect(() => {
+                const initParticles = () => {
+                    const particles = [];
+                    const count = paramsRef.current.particleCount || 300;
+                    const r = paramsRef.current.baseRadius || 60;
+                    for(let i=0; i<count; i++) {
+                        particles.push({
+                            x: Math.random() * window.innerWidth,
+                            y: (Math.random() - 0.5) * 2 * r, 
+                            speedOffset: Math.random() * 0.2 + 0.9 
+                        });
+                    }
+                    stateRef.current.particles = particles;
+                };
+                initParticles();
+
+                // Resize handler
+                const handleResize = () => {
+                    [canvasRef, graphCanvasRef, complianceCanvasRef, resistanceCanvasRef, powerLawCanvasRef, reynoldsCanvasRef, tensionCanvasRef].forEach(ref => {
+                        if (ref.current) {
+                            const rect = ref.current.parentElement.getBoundingClientRect();
+                            ref.current.width = rect.width;
+                            ref.current.height = rect.height;
+                        }
+                    });
+                };
+                window.addEventListener('resize', handleResize);
+                // Delay slightly to ensure layout is done
+                setTimeout(handleResize, 100);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            // Dynamic Particle Count
+            useEffect(() => {
+                const currentCount = stateRef.current.particles.length;
+                if (particleCount > currentCount) {
+                    const needed = particleCount - currentCount;
+                    for(let i=0; i<needed; i++) {
+                         stateRef.current.particles.push({
+                            x: Math.random() * window.innerWidth,
+                            y: (Math.random() - 0.5) * 2 * paramsRef.current.baseRadius, 
+                            speedOffset: Math.random() * 0.2 + 0.9 
+                        });
+                    }
+                } else if (particleCount < currentCount) {
+                    stateRef.current.particles.splice(particleCount);
+                }
+            }, [particleCount]);
+
+            // --- PHYSICS ENGINE ---
+            const updatePhysics = (dt) => {
+                const p = paramsRef.current;
+                stateRef.current.time += dt;
+                
+                // 1. Phase
+                const period = 60 / p.heartRate;
+                stateRef.current.phase += dt / period;
+                if (stateRef.current.phase > 1) stateRef.current.phase -= 1;
+                const phase = stateRef.current.phase;
+
+                // 2. Pressure
+                let pulseBase = 0;
+                const sysDur = p.systoleDuration;
+                if (phase < sysDur) {
+                    // Systole (Sine rise)
+                    pulseBase = Math.sin(phase / sysDur * Math.PI);
+                } else {
+                    // Diastole (Decay)
+                    const decayPhase = (phase - sysDur) / (1 - sysDur);
+                    pulseBase = 0.3 * Math.exp(-3 * decayPhase) + p.notchSize * Math.sin(decayPhase * Math.PI * 2); 
+                }
+                pulseBase = Math.max(0, pulseBase);
+                const currentPressure = p.diastolicPressure + (p.systolicPressure - p.diastolicPressure) * pulseBase;
+
+                // 3. Compliance (Radius)
+                // C = k * (1-stiffness)
+                const compliance = (1 - p.vesselStiffness) * 0.8 + 0.1;
+                const pressureRatio = currentPressure / 100;
+                const currentRadius = p.baseRadius * (1 + compliance * (pressureRatio - 0.8) * p.complianceScale);
+
+                // 4. Resistance (Velocity)
+                // v ~ P / (R * viscosity)
+                const baseVelocity = (currentPressure / p.peripheralResistance) / p.viscosity * p.velocityScale; 
+
+                // Sync UI occasionally
+                if (Math.random() < 0.1) setCurrentPhase(phase);
+
+                return { currentPressure, currentRadius, baseVelocity, phase, compliance, p };
+            };
+
+            // --- RENDER LOOP ---
+            const draw = () => {
+                const params = paramsRef.current;
+                if (!canvasRef.current) return;
+
+                // 1. Physics Update
+                const dt = 0.016; 
+                const { currentPressure, currentRadius, baseVelocity, phase, compliance, p } = updatePhysics(dt);
+
+                // 2. Update Stats Overlay
+                if (statsRef.current) {
+                    statsRef.current.innerHTML = `
+                        <div class="flex gap-4 text-xs font-mono bg-slate-900/80 p-2 rounded border border-slate-700 backdrop-blur-sm shadow-lg">
+                            <span class="text-red-400">P: ${currentPressure.toFixed(0)}</span>
+                            <span class="text-blue-400">V: ${baseVelocity.toFixed(1)}</span>
+                            <span class="text-emerald-400">R: ${currentRadius.toFixed(1)}</span>
+                        </div>
+                    `;
+                }
+
+                // 3. History
+                historyRef.current.push({ p: currentPressure, v: baseVelocity, r: currentRadius });
+                if (historyRef.current.length > 300) historyRef.current.shift();
+
+                // 4. Main Canvas Draw
+                const ctx = canvasRef.current.getContext('2d');
+                const w = canvasRef.current.width;
+                const h = canvasRef.current.height;
+                const cy = h / 2;
+
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, w, h);
+
+                // Tissue Background
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, w, cy - currentRadius - 4);
+                ctx.fillRect(0, cy + currentRadius + 4, w, h - (cy + currentRadius + 4));
+
+                // Walls
+                ctx.lineWidth = 4 + (p.vesselStiffness * 4);
+                ctx.strokeStyle = `rgba(255, 100, 100, ${0.5 + 0.5 * (currentPressure/150)})`;
+                ctx.beginPath();
+                ctx.moveTo(0, cy - currentRadius);
+                ctx.lineTo(w, cy - currentRadius);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, cy + currentRadius);
+                ctx.lineTo(w, cy + currentRadius);
+                ctx.stroke();
+
+                // Particles
+                ctx.fillStyle = '#60a5fa';
+                const particles = stateRef.current.particles;
+                particles.forEach(pt => {
+                    if (Math.abs(pt.y) > currentRadius) pt.y = Math.sign(pt.y) * (currentRadius - 2);
+                    const rRatio = Math.abs(pt.y) / currentRadius;
+                    const parabolicFactor = 1 - (rRatio * rRatio); 
+                    pt.x += baseVelocity * pt.speedOffset * parabolicFactor;
+                    if (pt.x > w) pt.x = 0;
+                    
+                    const size = 2 + (pt.speedOffset * 1);
+                    ctx.globalAlpha = 0.6 + parabolicFactor * 0.4;
+                    ctx.beginPath();
+                    ctx.arc(pt.x, cy + pt.y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1.0;
+
+                // 5. Main Graphs (Telemetry)
+                if (graphCanvasRef.current) {
+                    const gCtx = graphCanvasRef.current.getContext('2d');
+                    const gw = graphCanvasRef.current.width;
+                    const gh = graphCanvasRef.current.height;
+                    
+                    gCtx.fillStyle = '#1e293b';
+                    gCtx.fillRect(0,0,gw,gh);
+                    
+                    // Grid
+                    gCtx.strokeStyle = '#334155';
+                    gCtx.lineWidth = 1;
+                    gCtx.beginPath();
+                    gCtx.moveTo(0, gh/2);
+                    gCtx.lineTo(gw, gh/2);
+                    gCtx.stroke();
+
+                    if (historyRef.current.length > 1) {
+                        const maxP = 220;
+                        const maxV = 600; 
+
+                        // Pressure Line
+                        gCtx.beginPath();
+                        gCtx.strokeStyle = '#ef4444';
+                        gCtx.lineWidth = 2;
+                        historyRef.current.forEach((point, i) => {
+                            const x = (i / 300) * gw;
+                            const y = gh - (point.p / maxP) * gh;
+                            if (i === 0) gCtx.moveTo(x, y); else gCtx.lineTo(x, y);
+                        });
+                        gCtx.stroke();
+
+                        // Velocity Line
+                        gCtx.beginPath();
+                        gCtx.strokeStyle = '#3b82f6';
+                        historyRef.current.forEach((point, i) => {
+                            const x = (i / 300) * gw;
+                            const y = gh - (point.v / maxV) * gh; 
+                            if (i === 0) gCtx.moveTo(x, y); else gCtx.lineTo(x, y);
+                        });
+                        gCtx.stroke();
+                    }
+                }
+
+                // 6. Physics Lab: Compliance Graph (Radius vs Pressure)
+                if (complianceCanvasRef.current) {
+                    const cCtx = complianceCanvasRef.current.getContext('2d');
+                    const cw = complianceCanvasRef.current.width;
+                    const ch = complianceCanvasRef.current.height;
+                    
+                    cCtx.clearRect(0,0,cw,ch); // Transparent background
+
+                    // Draw Theoretical Curve (Sweep pressure 0 to 200)
+                    cCtx.beginPath();
+                    cCtx.strokeStyle = '#10b981'; // Emerald
+                    cCtx.lineWidth = 2;
+                    cCtx.setLineDash([4, 4]);
+                    
+                    for(let press=0; press<=200; press+=10) {
+                        const pRatio = press / 100;
+                        // Same formula as updatePhysics
+                        const rad = p.baseRadius * (1 + compliance * (pRatio - 0.8) * p.complianceScale);
+                        
+                        const plotX = (press / 200) * cw;
+                        // Scale radius to fit view nicely. Max rad is approx base * 1.5
+                        const maxRadView = p.baseRadius * 1.8;
+                        const minRadView = p.baseRadius * 0.5;
+                        const plotY = ch - ((rad - minRadView) / (maxRadView - minRadView)) * ch;
+                        
+                        if (press===0) cCtx.moveTo(plotX, plotY);
+                        else cCtx.lineTo(plotX, plotY);
+                    }
+                    cCtx.stroke();
+                    cCtx.setLineDash([]);
+
+                    // Draw Current State Dot
+                    const curX = (currentPressure / 200) * cw;
+                    const maxRadView = p.baseRadius * 1.8;
+                    const minRadView = p.baseRadius * 0.5;
+                    const curY = ch - ((currentRadius - minRadView) / (maxRadView - minRadView)) * ch;
+
+                    cCtx.fillStyle = '#fff';
+                    cCtx.beginPath();
+                    cCtx.arc(curX, curY, 5, 0, Math.PI*2);
+                    cCtx.fill();
+                }
+
+                // 7. Physics Lab: Resistance Graph (Velocity vs Pressure)
+                if (resistanceCanvasRef.current) {
+                    const rCtx = resistanceCanvasRef.current.getContext('2d');
+                    const rw = resistanceCanvasRef.current.width;
+                    const rh = resistanceCanvasRef.current.height;
+                    
+                    rCtx.clearRect(0,0,rw,rh);
+
+                    // Draw Line (Linear relationship)
+                    rCtx.beginPath();
+                    rCtx.strokeStyle = '#3b82f6';
+                    rCtx.lineWidth = 2;
+                    rCtx.setLineDash([4, 4]);
+
+                    // Point 1: (0,0)
+                    rCtx.moveTo(0, rh);
+                    
+                    // Point 2: (200, maxVel)
+                    // v = P / (R * visc) * scale
+                    const v200 = (200 / p.peripheralResistance) / p.viscosity * p.velocityScale;
+                    const maxVView = 600; // Same as main graph
+                    
+                    const x2 = rw;
+                    const y2 = rh - (v200 / maxVView) * rh;
+                    rCtx.lineTo(x2, y2);
+                    rCtx.stroke();
+                    rCtx.setLineDash([]);
+
+                    // Draw Current State Dot
+                    const cX = (currentPressure / 200) * rw;
+                    const cY = rh - (baseVelocity / maxVView) * rh;
+                    
+                    rCtx.fillStyle = '#fff';
+                    rCtx.beginPath();
+                    rCtx.arc(cX, cY, 5, 0, Math.PI*2);
+                    rCtx.fill();
+                }
+
+                // 8. Physics Lab Part 2: Power Law (r^4)
+                if (powerLawCanvasRef.current) {
+                    const ctx = powerLawCanvasRef.current.getContext('2d');
+                    const w = powerLawCanvasRef.current.width;
+                    const h = powerLawCanvasRef.current.height;
+                    ctx.clearRect(0,0,w,h);
+
+                    // Bar 1: Radius (Relative to a "standard" 60px)
+                    const standardR = 60;
+                    const relR = currentRadius / standardR;
+                    
+                    // Bar 2: Flow Factor (r^4)
+                    const flowFactor = Math.pow(relR, 4);
+
+                    const maxBar = 3.0; // Scale bars
+
+                    // Draw Radius Bar
+                    const barW = w / 4;
+                    const bar1H = (Math.min(relR, maxBar) / maxBar) * h;
+                    ctx.fillStyle = '#10b981';
+                    ctx.fillRect(w/4 - barW/2, h - bar1H, barW, bar1H);
+
+                    // Draw Flow Bar
+                    const bar2H = (Math.min(flowFactor, maxBar) / maxBar) * h;
+                    ctx.fillStyle = '#8b5cf6'; // Violet
+                    ctx.fillRect(3*w/4 - barW/2, h - bar2H, barW, bar2H);
+
+                    // Labels
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.font = '10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${relR.toFixed(1)}x`, w/4, h - bar1H - 5);
+                    ctx.fillText(`${flowFactor.toFixed(1)}x`, 3*w/4, h - bar2H - 5);
+                }
+
+                // 9. Physics Lab Part 2: Reynolds Number Gauge
+                if (reynoldsCanvasRef.current) {
+                    const ctx = reynoldsCanvasRef.current.getContext('2d');
+                    const w = reynoldsCanvasRef.current.width;
+                    const h = reynoldsCanvasRef.current.height;
+                    ctx.clearRect(0,0,w,h);
+
+                    // Approx Re = (rho * v * D) / mu
+                    // Let's fake units to be reasonable: v ~ 100, D ~ 1, visc ~ 1 => Re ~ 1000
+                    const Re = (baseVelocity * (currentRadius/30)) / p.viscosity * 10;
+                    
+                    // Gauge Arc
+                    const cx = w/2;
+                    const cy = h - 10;
+                    const radius = Math.min(w, h) - 20;
+
+                    ctx.lineWidth = 10;
+                    // Green Zone (Laminar < 2000)
+                    ctx.strokeStyle = '#10b981';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, Math.PI, Math.PI + (Math.PI*0.5)); // 0 to 2000 map
+                    ctx.stroke();
+
+                    // Yellow/Red Zone (> 2000)
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, Math.PI + (Math.PI*0.5), 2*Math.PI);
+                    ctx.stroke();
+
+                    // Needle
+                    const maxRe = 4000;
+                    const clampedRe = Math.min(Re, maxRe);
+                    const angle = Math.PI + (clampedRe / maxRe) * Math.PI;
+                    
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(cx + Math.cos(angle)*(radius-5), cy + Math.sin(angle)*(radius-5));
+                    ctx.stroke();
+
+                    // Text
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.font = '12px font-bold';
+                    ctx.fillText(`Re: ${Re.toFixed(0)}`, cx, cy - 10);
+                }
+
+                // 10. Physics Lab Part 2: Wall Tension
+                if (tensionCanvasRef.current) {
+                    const ctx = tensionCanvasRef.current.getContext('2d');
+                    const w = tensionCanvasRef.current.width;
+                    const h = tensionCanvasRef.current.height;
+                    ctx.clearRect(0,0,w,h);
+
+                    const cx = w/2;
+                    const cy = h/2;
+                    
+                    // Tension ~ P * r
+                    const tension = currentPressure * currentRadius / 5000; // scaling factor
+
+                    // Draw Circle
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 20, 0, Math.PI*2);
+                    ctx.stroke();
+
+                    // Draw Tension Arrows (Outward tangential ish? No, hoop stress pulls apart)
+                    // Visualizing 'Expansion Force' vectors
+                    const arrowLen = tension * 40;
+                    
+                    ctx.strokeStyle = '#f59e0b'; // Amber
+                    ctx.lineWidth = 3;
+                    
+                    // Left Arrow
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 20, cy);
+                    ctx.lineTo(cx - 20 - arrowLen, cy);
+                    ctx.stroke();
+
+                    // Right Arrow
+                    ctx.beginPath();
+                    ctx.moveTo(cx + 20, cy);
+                    ctx.lineTo(cx + 20 + arrowLen, cy);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`Tension`, cx, cy + 35);
+                }
+
+                requestIdRef.current = requestAnimationFrame(draw);
+            };
+
+            useEffect(() => {
+                requestIdRef.current = requestAnimationFrame(draw);
+                return () => cancelAnimationFrame(requestIdRef.current);
+            }, []);
+
+            // --- UI RENDER ---
+            return (
+                <div className="max-w-7xl mx-auto p-4 md:p-6 pb-20">
+                    <header className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div>
+                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400">
+                                Pulsatile Flow Simulation
+                            </h1>
+                            <p className="text-slate-400 mt-1 text-sm">
+                                Interactive Hemodynamics Laboratory
+                            </p>
+                        </div>
+                        <div className="mt-4 md:mt-0 text-right hidden md:block">
+                             <div className="text-xs text-slate-500 font-mono">v2.0 Physics Engine</div>
+                        </div>
+                    </header>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* LEFT COLUMN: CONTROLS */}
+                        <div className="lg:col-span-3 bg-slate-800 p-5 rounded-xl border border-slate-700 h-fit max-h-[80vh] overflow-y-auto shadow-xl">
+                            <h2 className="text-sm uppercase tracking-wider font-bold text-slate-500 mb-4 border-b border-slate-700 pb-2">Physiology</h2>
+                            
+                            <Slider label="Heart Rate" value={heartRate} min={30} max={180} step={1} unit="BPM" onChange={setHeartRate} />
+                            <Slider label="Systolic P." value={systolicPressure} min={80} max={200} step={1} unit="mmHg" onChange={setSystolicPressure} />
+                            <Slider label="Diastolic P." value={diastolicPressure} min={40} max={120} step={1} unit="mmHg" onChange={setDiastolicPressure} />
+                            <Slider label="Systole %" value={systoleDuration} min={0.1} max={0.6} step={0.05} unit="" onChange={setSystoleDuration} />
+
+                            <h2 className="text-sm uppercase tracking-wider font-bold text-slate-500 mb-4 mt-8 border-b border-slate-700 pb-2">Vessel Properties</h2>
+                            <Slider label="Base Radius" value={baseRadius} min={20} max={100} step={5} unit="px" onChange={setBaseRadius} />
+                            <Slider label="Stiffness" value={vesselStiffness} min={0.1} max={1.0} step={0.1} unit="" onChange={setVesselStiffness} />
+                            <Slider label="Resistance" value={peripheralResistance} min={0.5} max={5.0} step={0.1} unit="R" onChange={setPeripheralResistance} />
+                            <Slider label="Viscosity" value={viscosity} min={0.5} max={3.0} step={0.1} unit="η" onChange={setViscosity} />
+
+                            <div className="mt-8 pt-4 border-t border-slate-700">
+                                <button 
+                                    onClick={() => setShowAdvanced(!showAdvanced)}
+                                    className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-2 w-full transition-colors"
+                                >
+                                    <span>{showAdvanced ? 'Hide' : 'Show'} Advanced Constants</span>
+                                </button>
+                                
+                                {showAdvanced && (
+                                    <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300 space-y-2">
+                                        <Slider label="Particles" value={particleCount} min={50} max={1000} step={50} unit="" onChange={setParticleCount} />
+                                        <Slider label="Vel Scale" value={velocityScale} min={0.5} max={10.0} step={0.5} unit="x" onChange={setVelocityScale} />
+                                        <Slider label="Comp Scale" value={complianceScale} min={0.1} max={2.0} step={0.1} unit="" onChange={setComplianceScale} />
+                                        <Slider label="Notch Size" value={notchSize} min={0} max={0.5} step={0.05} unit="" onChange={setNotchSize} />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: VISUALS */}
+                        <div className="lg:col-span-9 space-y-6">
+                            
+                            {/* 1. Main Vessel Animation */}
+                            <div className="canvas-container bg-slate-900 rounded-lg border border-slate-700 relative group">
+                                <div className="absolute top-3 left-4 text-xs font-bold text-slate-500 uppercase tracking-wide z-10">Longitudinal Flow View</div>
+                                <div ref={statsRef} className="absolute top-3 right-4 z-10"></div>
+                                <canvas ref={canvasRef} className="w-full h-[300px] block" />
+                            </div>
+
+                            {/* 2. Main Time Series Graphs */}
+                            <div className="canvas-container bg-slate-900 rounded-lg border border-slate-700 relative">
+                                <div className="absolute top-3 left-4 text-xs font-bold text-slate-500 uppercase tracking-wide z-10">Real-time Telemetry</div>
+                                <div className="absolute top-3 right-4 flex gap-4 text-xs font-medium z-10">
+                                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span> Pressure</span>
+                                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></span> Flow Vel</span>
+                                </div>
+                                <canvas ref={graphCanvasRef} className="w-full h-[160px] block" />
+                            </div>
+
+                            {/* 3. THE PHYSICS LAB (New Section) */}
+                            <div className="pt-6">
+                                <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                                    <span className="bg-blue-600 w-1 h-8 rounded-full"></span>
+                                    Physics Breakdown
+                                </h2>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    
+                                    {/* CARD 1: CARDIAC CYCLE */}
+                                    <div className="math-card relative overflow-hidden">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">1. Pressure Source</div>
+                                        <div className="h-24 flex items-center justify-center text-slate-300 text-sm">
+                                            <Latex block>
+                                                {`P(t) = P_{dia} + \\Delta P \\cdot f(t)`}
+                                            </Latex>
+                                        </div>
+                                        <div className="mt-2 text-xs text-slate-400 leading-relaxed">
+                                            Driven by the heart pump. 
+                                            <br/>
+                                            Phase: <span className={currentPhase < systoleDuration ? "text-red-400 font-bold" : "text-slate-600"}>SYSTOLE</span> vs <span className={currentPhase >= systoleDuration ? "text-blue-400 font-bold" : "text-slate-600"}>DIASTOLE</span>.
+                                        </div>
+                                        {/* Simple Phase Bar */}
+                                        <div className="w-full h-1 bg-slate-700 mt-3 rounded-full overflow-hidden">
+                                            <div className="h-full bg-blue-500 transition-all duration-75" style={{width: `${currentPhase * 100}%`}}></div>
+                                        </div>
+                                    </div>
+
+                                    {/* CARD 2: COMPLIANCE */}
+                                    <div className="math-card">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">2. Vessel Compliance</div>
+                                        <div className="h-32 bg-slate-900/50 rounded mb-2 relative border border-slate-700/50">
+                                            <canvas ref={complianceCanvasRef} className="w-full h-full block" />
+                                            <div className="absolute bottom-1 right-2 text-[10px] text-slate-600">Pressure →</div>
+                                            <div className="absolute top-1 left-2 text-[10px] text-slate-600">Radius ↑</div>
+                                        </div>
+                                        <div className="text-center mb-2">
+                                            <Latex>{`r(P) = r_0 + C \\cdot (P - P_{ref})`}</Latex>
+                                        </div>
+                                        <p className="text-xs text-slate-400 text-center">
+                                            Stiffer vessels (Low $C$) expand less as pressure rises.
+                                        </p>
+                                    </div>
+
+                                    {/* CARD 3: RESISTANCE */}
+                                    <div className="math-card">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">3. Flow Resistance</div>
+                                        <div className="h-32 bg-slate-900/50 rounded mb-2 relative border border-slate-700/50">
+                                            <canvas ref={resistanceCanvasRef} className="w-full h-full block" />
+                                            <div className="absolute bottom-1 right-2 text-[10px] text-slate-600">Pressure →</div>
+                                            <div className="absolute top-1 left-2 text-[10px] text-slate-600">Velocity ↑</div>
+                                        </div>
+                                        <div className="text-center mb-2">
+                                            <Latex>{`v \\propto \\frac{P}{R \\cdot \\eta}`}</Latex>
+                                        </div>
+                                        <p className="text-xs text-slate-400 text-center">
+                                            Higher Resistance ($R$) or Viscosity ($\eta$) reduces flow speed.
+                                        </p>
+                                    </div>
+
+                                    {/* CARD 4: THE POWER LAW (NEW) */}
+                                    <div className="math-card">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">4. Poiseuille's Power Law</div>
+                                        <div className="h-32 bg-slate-900/50 rounded mb-2 relative border border-slate-700/50">
+                                            <canvas ref={powerLawCanvasRef} className="w-full h-full block" />
+                                            <div className="absolute bottom-1 right-2 text-[10px] text-violet-400">Flow Factor ($r^4$)</div>
+                                            <div className="absolute bottom-1 left-2 text-[10px] text-emerald-400">Radius ($r$)</div>
+                                        </div>
+                                        <div className="text-center mb-2">
+                                            <Latex>{`Q \\propto r^4`}</Latex>
+                                        </div>
+                                        <p className="text-xs text-slate-400 text-center">
+                                            Small changes in radius cause massive changes in flow.
+                                        </p>
+                                    </div>
+
+                                    {/* CARD 5: TURBULENCE (NEW) */}
+                                    <div className="math-card">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">5. Reynolds Number (Turbulence)</div>
+                                        <div className="h-32 bg-slate-900/50 rounded mb-2 relative border border-slate-700/50 flex items-center justify-center">
+                                            <canvas ref={reynoldsCanvasRef} className="w-full h-full block" />
+                                        </div>
+                                        <div className="text-center mb-2">
+                                            <Latex>{`Re = \\frac{\\rho v D}{\\eta}`}</Latex>
+                                        </div>
+                                        <p className="text-xs text-slate-400 text-center">
+                                            If Re {'>'} 2000, flow becomes turbulent (chaotic).
+                                        </p>
+                                    </div>
+
+                                    {/* CARD 6: WALL TENSION (NEW) */}
+                                    <div className="math-card">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">6. Wall Tension (LaPlace)</div>
+                                        <div className="h-32 bg-slate-900/50 rounded mb-2 relative border border-slate-700/50 flex items-center justify-center">
+                                            <canvas ref={tensionCanvasRef} className="w-full h-full block" />
+                                        </div>
+                                        <div className="text-center mb-2">
+                                            <Latex>{`T \\propto P \\cdot r`}</Latex>
+                                        </div>
+                                        <p className="text-xs text-slate-400 text-center">
+                                            Dilated vessels under high pressure risk rupture (Aneurysm).
+                                        </p>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<PulsatileFlow />);
+    </script>
+</body>
+</html>
