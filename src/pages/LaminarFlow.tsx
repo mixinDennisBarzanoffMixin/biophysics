@@ -21,6 +21,107 @@ const Equation = ({ tex, block = false }: { tex: string; block?: boolean }) => {
   return <div ref={ref} style={{ display: block ? 'block' : 'inline-block' }} />
 }
 
+const PlugFlowSimulation = () => {
+  const [pressure, setPressure] = useState([50])
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const requestRef = useRef<number>(0)
+  const particlesRef = useRef<Array<{x: number, y: number}>>([])
+
+  useEffect(() => {
+    particlesRef.current = Array.from({ length: 500 }, () => ({
+      x: Math.random() * 800,
+      y: Math.random() * 150 // fixed height
+    }))
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const animate = () => {
+      const width = canvas.width
+      const height = canvas.height
+      const centerY = height / 2
+      const pipeHeight = 150
+
+      ctx.clearRect(0, 0, width, height)
+
+      // Draw Pipe
+      ctx.strokeStyle = '#333'
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.moveTo(0, centerY - pipeHeight/2)
+      ctx.lineTo(width, centerY - pipeHeight/2)
+      ctx.stroke()
+      
+      ctx.beginPath()
+      ctx.moveTo(0, centerY + pipeHeight/2)
+      ctx.lineTo(width, centerY + pipeHeight/2)
+      ctx.stroke()
+
+      // Fluid Background
+      ctx.fillStyle = '#fee2e2'
+      ctx.fillRect(0, centerY - pipeHeight/2, width, pipeHeight)
+
+      // Particles
+      ctx.fillStyle = '#ef4444'
+      const v = pressure[0] * 0.1 // Velocity proportional only to pressure
+
+      particlesRef.current.forEach(p => {
+        p.x += v
+        if (p.x > width) p.x = 0
+        
+        // Draw particle
+        ctx.beginPath()
+        ctx.arc(p.x, centerY - pipeHeight/2 + p.y, 3, 0, Math.PI * 2)
+        ctx.fill()
+      })
+      
+      // Draw Profile (Flat)
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      const profileX = 100 + v * 20
+      ctx.moveTo(profileX, centerY - pipeHeight/2)
+      ctx.lineTo(profileX, centerY + pipeHeight/2)
+      ctx.stroke()
+
+      requestRef.current = requestAnimationFrame(animate)
+    }
+
+    requestRef.current = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(requestRef.current)
+  }, [pressure])
+
+  return (
+    <Card className="my-8 border-2 border-dashed border-slate-300">
+      <CardHeader>
+        <CardTitle>Simplification: The "Plug Flow" Model</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          If flow depended <strong>only</strong> on pressure (<Equation tex="Q \propto \Delta P" />), the fluid would move as a solid block. 
+          There is no friction with the walls (no viscosity).
+        </p>
+      </CardHeader>
+      <CardContent>
+        <canvas ref={canvasRef} width={800} height={200} className="w-full h-[200px] rounded-lg bg-slate-50 mb-6" />
+        
+        <div className="flex items-center gap-4">
+          <Label>Pressure Difference (ΔP)</Label>
+          <Slider 
+            min={0} 
+            max={100} 
+            value={pressure} 
+            onValueChange={(val) => setPressure(Array.isArray(val) ? val : [val])}
+            className="w-64"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export const LaminarFlow = () => {
   const [radius, setRadius] = useState([50]) // Pipe radius
   const [pressure, setPressure] = useState([50]) // Pressure difference
@@ -81,11 +182,11 @@ export const LaminarFlow = () => {
         ctx.stroke()
 
         // Draw Fluid (Light background)
-        ctx.fillStyle = '#e0f2fe'
+        ctx.fillStyle = '#fee2e2'
         ctx.fillRect(0, centerY - R, width, R * 2)
 
         // Draw Particles
-        ctx.fillStyle = '#60a5fa'
+        ctx.fillStyle = '#f87171'
         
         // Update and draw particles
         // Ensure we have particles
@@ -220,6 +321,20 @@ export const LaminarFlow = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              <div className="mt-8 prose prose-slate max-w-none">
+                <h3 className="text-xl font-bold mb-2">Notes</h3>
+                <p>On 17.12.2025, as I began learning Biophysics, I encountered for the first time how velocity varies within a pipe, which made me realize it was necessary to first simplify the flow equation to <Equation tex="Q = \Delta P" /> to grasp its foundation. This helped me understand why flow rate (<Equation tex="Q" />) is directly proportional to pressure difference, as shown by <Equation tex="Q \propto \Delta P" />, meaning that doubling the pressure difference directly results in doubling the flow rate.</p>
+
+                <PlugFlowSimulation />
+
+                
+                // example
+                <div className="my-4 p-4 bg-slate-100 rounded-md">
+                   <Equation block tex="Q = \frac{200 \cdot \pi \cdot (0.05)^4}{8 \cdot 0.001 \cdot 10} \approx 4.9 \times 10^{-3} \text{ m}^3/\text{s}" />
+                </div>
+                
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -297,7 +412,7 @@ export const LaminarFlow = () => {
             </CardContent>
           </Card>
           
-          <Card className="bg-blue-50">
+          <Card className="bg-red-50">
             <CardContent className="p-4">
               <strong className="text-sm">Variable Guide:</strong>
               <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">

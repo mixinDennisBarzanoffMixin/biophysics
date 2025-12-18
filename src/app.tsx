@@ -1,14 +1,17 @@
 import { useState } from 'preact/hooks'
 import { LaminarFlow } from './pages/LaminarFlow'
-import { Docs } from './pages/Docs'
+import { Journey } from './pages/Journey.tsx'
 import { Button } from '@/components/ui/button'
 import { VercelBlock } from './pages/Examples'
 import './app.css'
 
-type Page = 'docs' | 'laminar' | 'examples'
+type Route =
+  | { page: 'journey' }
+  | { page: 'entry'; entryId: string }
+  | { page: 'examples' }
 
 export function App() {
-  const [page, setPage] = useState<Page>('docs')
+  const [route, setRoute] = useState<Route>({ page: 'journey' })
 
   return (
     <div className="app-shell">
@@ -22,31 +25,47 @@ export function App() {
         </div>
         <nav className="nav">
           <Button
-            variant={page === 'docs' ? 'default' : 'outline'}
-            onClick={() => setPage('docs')}
+            variant={route.page === 'journey' ? 'default' : 'outline'}
+            onClick={() => setRoute({ page: 'journey' })}
           >
-            Docs
+            Journey
           </Button>
           <Button
-            variant={page === 'laminar' ? 'default' : 'outline'}
-            onClick={() => setPage('laminar')}
-          >
-            Laminar Flow Sim
-          </Button>
-          <Button
-            variant={page === 'examples' ? 'default' : 'outline'}
-            onClick={() => setPage('examples')}
+            variant={route.page === 'examples' ? 'default' : 'outline'}
+            onClick={() => setRoute({ page: 'examples' })}
           >
             UI Examples
           </Button>
+          {route.page === 'entry' && (
+            <Button variant="outline" onClick={() => setRoute({ page: 'journey' })}>
+              Back
+            </Button>
+          )}
         </nav>
       </header>
 
       <main className="app-main">
-        {page === 'docs' ? <Docs onOpenSim={() => setPage('laminar')} /> : 
-         page === 'laminar' ? <LaminarFlow /> : 
-         <VercelBlock />}
+        {route.page === 'journey' ? (
+          <Journey
+            onOpenEntry={(entryId: string) => setRoute({ page: 'entry', entryId })}
+            onContinue={() => setRoute({ page: 'entry', entryId: 'laminar-flow' })}
+          />
+        ) : route.page === 'entry' ? (
+          route.entryId === 'laminar-flow' ? (
+            <LaminarFlow />
+          ) : (
+            <div className="p-8 max-w-[900px] mx-auto">
+              <div className="text-2xl font-bold mb-2">Not written yet</div>
+              <div className="text-slate-600">
+                Entry <span className="font-mono">{route.entryId}</span> is a placeholder.
+              </div>
+            </div>
+          )
+        ) : (
+          <VercelBlock />
+        )}
       </main>
     </div>
   )
 }
+
