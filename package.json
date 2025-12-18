@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "npx serve@latest ./build",
-    "lint": "next lint"
+    "dev": "bun run --bun next dev",
+    "build": "bun run --bun next build",
+    "start": "bunx serve@latest ./build",
+    "lint": "bun run --bun next lint"
   },
   "dependencies": {
     "@ark-ui/react": "^5.30.0",

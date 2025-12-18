@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { LaminarFlow } from './views/LaminarFlow'
+import { LaminarFlow } from './views/laminar-flow/LaminarFlow'
+import { Docs } from './views/Docs'
 import { Journey } from './views/Journey'
 import { Button } from '@/components/ui/button'
 import { VercelBlock } from './views/Examples'
