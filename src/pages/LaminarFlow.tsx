@@ -126,6 +126,7 @@ export const LaminarFlow = () => {
   const [radius, setRadius] = useState([50]) // Pipe radius
   const [pressure, setPressure] = useState([50]) // Pressure difference
   const [viscosity, setViscosity] = useState([10]) // Viscosity
+  const [length, setLength] = useState([100]) // Pipe length factor
   const [showVectors, setShowVectors] = useState(true)
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -134,9 +135,6 @@ export const LaminarFlow = () => {
   const requestRef = useRef<number>(0)
   const particlesRef = useRef<Array<{x: number, y: number, r: number}>>([])
 
-  // Simulation constants
-  const length = 100 // Pipe length factor
-  
   // Initialize particles
   useEffect(() => {
     particlesRef.current = Array.from({ length: 1000 }, () => ({
@@ -156,6 +154,7 @@ export const LaminarFlow = () => {
         const width = canvas.width
         const height = canvas.height
         const centerY = height / 2
+        const centerX = width / 2
         
         // Clear canvas
         ctx.clearRect(0, 0, width, height)
@@ -163,6 +162,14 @@ export const LaminarFlow = () => {
         const R = radius[0]
         const dP = pressure[0]
         const mu = viscosity[0]
+        const L = length[0]
+
+        // Scale pipe length proportionally to L (linear scale)
+        // If L=100, we want it to take up most of the canvas (e.g., 750px)
+        // If L=0.001, it becomes a tiny sliver (minimum 2px for visibility)
+        const pipePx = Math.max(2, (L / 100) * (width * 0.9))
+        const pipeX0 = centerX - pipePx / 2
+        const pipeX1 = centerX + pipePx / 2
         
         // Calculate max velocity (scale factor for visualization)
         // v_max = (dP * R^2) / (4 * mu * L)
@@ -172,18 +179,18 @@ export const LaminarFlow = () => {
         ctx.strokeStyle = '#333'
         ctx.lineWidth = 4
         ctx.beginPath()
-        ctx.moveTo(0, centerY - R)
-        ctx.lineTo(width, centerY - R)
+        ctx.moveTo(pipeX0, centerY - R)
+        ctx.lineTo(pipeX1, centerY - R)
         ctx.stroke()
         
         ctx.beginPath()
-        ctx.moveTo(0, centerY + R)
-        ctx.lineTo(width, centerY + R)
+        ctx.moveTo(pipeX0, centerY + R)
+        ctx.lineTo(pipeX1, centerY + R)
         ctx.stroke()
 
         // Draw Fluid (Light background)
         ctx.fillStyle = '#fee2e2'
-        ctx.fillRect(0, centerY - R, width, R * 2)
+        ctx.fillRect(pipeX0, centerY - R, pipePx, R * 2)
 
         // Draw Particles
         ctx.fillStyle = '#f87171'
@@ -192,7 +199,7 @@ export const LaminarFlow = () => {
         // Ensure we have particles
         if (particlesRef.current.length === 0) {
            particlesRef.current = Array.from({ length: 200 }, () => ({
-                x: Math.random() * width,
+                x: pipeX0 + Math.random() * pipePx,
                 y: 0, 
                 r: (Math.random() * 2 - 1) * R
            }))
@@ -208,12 +215,18 @@ export const LaminarFlow = () => {
 
             const r = p.r
             // Velocity at this radius
-            const v = (dP * (R * R - r * r)) / (4 * mu * length) * vScale * 0.1 // Speed factor for animation
+            const vRaw = (dP * (R * R - r * r)) / (4 * mu * L) * vScale * 0.1 // Speed factor for animation
+            // Clamp per-frame step so tiny L doesn't teleport particles too far
+            const v = Math.min(vRaw, 50)
 
             p.x += v
-            if (p.x > width) {
-                p.x = 0
+            // Wrap particles within the visible pipe segment
+            if (p.x > pipeX1) {
+                p.x = pipeX0 + (p.x - pipeX1) % pipePx
                 p.r = (Math.random() * 2 - 1) * R
+            }
+            if (p.x < pipeX0) {
+                p.x = pipeX1 - (pipeX0 - p.x) % pipePx
             }
 
             const y = centerY + r
@@ -231,10 +244,12 @@ export const LaminarFlow = () => {
         ctx.beginPath()
 
         const step = 2
-        const startX = 50 
+        const startX = pipeX0 + Math.min(20, pipePx * 0.2)
+        const maxVX = Math.max(5, pipeX1 - startX - 5)
         
         for (let r = -R; r <= R; r += step) {
-            const v = (dP * (R * R - r * r)) / (4 * mu * length) * vScale
+            const vRaw = (dP * (R * R - r * r)) / (4 * mu * L) * vScale
+            const v = Math.min(vRaw, maxVX)
             const x = startX + v
             const y = centerY + r
             if (r === -R) ctx.moveTo(x, y)
@@ -248,7 +263,8 @@ export const LaminarFlow = () => {
             ctx.lineWidth = 1
             const rStep = 10
             for (let r = -R + 5; r < R; r += rStep) {
-                 const v = (dP * (R * R - r * r)) / (4 * mu * length) * vScale
+                 const vRaw = (dP * (R * R - r * r)) / (4 * mu * L) * vScale
+                 const v = Math.min(vRaw, maxVX)
                  const x = startX + v
                  const y = centerY + r
                  
@@ -257,7 +273,7 @@ export const LaminarFlow = () => {
                  ctx.lineTo(x, y)
                  ctx.stroke()
                  
-                 if (v > 5) {
+                 if (v > 5 && pipePx > 30) { // Only draw arrow heads if there is room
                     ctx.beginPath()
                     ctx.moveTo(x, y)
                     ctx.lineTo(x - 5, y - 2)
@@ -272,8 +288,8 @@ export const LaminarFlow = () => {
         ctx.strokeStyle = '#999'
         ctx.lineWidth = 1
         ctx.beginPath()
-        ctx.moveTo(0, centerY)
-        ctx.lineTo(width, centerY)
+        ctx.moveTo(pipeX0, centerY)
+        ctx.lineTo(pipeX1, centerY)
         ctx.stroke()
         ctx.setLineDash([])
 
@@ -283,7 +299,7 @@ export const LaminarFlow = () => {
     requestRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(requestRef.current)
 
-  }, [radius, pressure, viscosity, showVectors])
+  }, [radius, pressure, viscosity, length, showVectors])
 
   return (
     <div className="p-8 max-w-[1200px] mx-auto">
@@ -396,6 +412,23 @@ export const LaminarFlow = () => {
                   max={50} 
                   value={viscosity} 
                   onValueChange={(value) => setViscosity(Array.isArray(value) ? value : [value])} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="length">Length (L)</Label>
+                  <span className="text-sm font-medium">
+                    {length[0] < 1 ? length[0].toFixed(3) : length[0].toFixed(1)}
+                  </span>
+                </div>
+                <Slider
+                  id="length"
+                  min={0.001}
+                  max={100}
+                  step={0.001}
+                  value={length}
+                  onValueChange={(value) => setLength(Array.isArray(value) ? value : [value])}
                 />
               </div>
               
