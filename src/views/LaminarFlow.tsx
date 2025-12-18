@@ -1,28 +1,15 @@
 // ... existing code ...
-import { useState, useEffect, useRef } from 'preact/hooks'
-// ... existing code ...
-import katex from 'katex'
+import { useState, useEffect, useRef } from 'react'
 import { Slider } from '@/components/ui/Slider'
 import { Switch } from '@/components/ui/Switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { KatexEquation } from '@/components/KatexEquation'
+import { FormulaExplorer } from '@/components/FormulaExplorer'
+import { calcLaminarVelocity, type FormulaTerms, buildVelocityTex } from '@/lib/laminar-formula'
 
-const Equation = ({ tex, block = false }: { tex: string; block?: boolean }) => {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (ref.current) {
-      katex.render(tex, ref.current, { 
-        throwOnError: false, 
-        displayMode: block 
-      })
-    }
-  }, [tex, block])
-  return <div ref={ref} style={{ display: block ? 'block' : 'inline-block' }} />
-}
-
-const PlugFlowSimulation = () => {
-  const [pressure, setPressure] = useState([50])
+const PlugFlowSimulation = ({ pressure }: { pressure: number[] }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const requestRef = useRef<number>(0)
   const particlesRef = useRef<Array<{x: number, y: number}>>([])
@@ -99,24 +86,13 @@ const PlugFlowSimulation = () => {
     <Card className="my-8 border-2 border-dashed border-slate-300">
       <CardHeader>
         <CardTitle>Simplification: The "Plug Flow" Model</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          If flow depended <strong>only</strong> on pressure (<Equation tex="Q \propto \Delta P" />), the fluid would move as a solid block. 
+        <span className="text-sm text-muted-foreground">
+          If flow depended <strong>only</strong> on pressure (<KatexEquation tex="Q \propto \Delta P" />), the fluid would move as a solid block. 
           There is no friction with the walls (no viscosity).
-        </p>
+        </span>
       </CardHeader>
       <CardContent>
         <canvas ref={canvasRef} width={800} height={200} className="w-full h-[200px] rounded-lg bg-slate-50 mb-6" />
-        
-        <div className="flex items-center gap-4">
-          <Label>Pressure Difference (ΔP)</Label>
-          <Slider 
-            min={0} 
-            max={100} 
-            value={pressure} 
-            onValueChange={(val) => setPressure(Array.isArray(val) ? val : [val])}
-            className="w-64"
-          />
-        </div>
       </CardContent>
     </Card>
   )
@@ -128,6 +104,19 @@ export const LaminarFlow = () => {
   const [viscosity, setViscosity] = useState([10]) // Viscosity
   const [length, setLength] = useState([100]) // Pipe length factor
   const [showVectors, setShowVectors] = useState(true)
+
+  const [terms, setTerms] = useState<FormulaTerms>({
+    pressure: true,
+    constant: true,
+    viscosity: true,
+    length: true,
+    radiusScale: true,
+    profile: true,
+  })
+
+  const [plugPressure, setPlugPressure] = useState([50])
+
+  const velocityTex = buildVelocityTex(terms)
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -198,7 +187,7 @@ export const LaminarFlow = () => {
         // Update and draw particles
         // Ensure we have particles
         if (particlesRef.current.length === 0) {
-           particlesRef.current = Array.from({ length: 200 }, () => ({
+           particlesRef.current = Array.from({ length: 1000 }, () => ({
                 x: pipeX0 + Math.random() * pipePx,
                 y: 0, 
                 r: (Math.random() * 2 - 1) * R
@@ -214,8 +203,9 @@ export const LaminarFlow = () => {
             if (Math.abs(p.r) > R) p.r = (Math.sign(p.r) || 1) * Math.random() * R
 
             const r = p.r
-            // Velocity at this radius
-            const vRaw = (dP * (R * R - r * r)) / (4 * mu * L) * vScale * 0.1 // Speed factor for animation
+            // Velocity at this radius (Formula Explorer can ablate terms)
+            const vRaw =
+              calcLaminarVelocity({ dP, R, r, mu, L, vScale, terms }) * 0.1 // speed factor for animation
             // Clamp per-frame step so tiny L doesn't teleport particles too far
             const v = Math.min(vRaw, 50)
 
@@ -248,7 +238,7 @@ export const LaminarFlow = () => {
         const maxVX = Math.max(5, pipeX1 - startX - 5)
         
         for (let r = -R; r <= R; r += step) {
-            const vRaw = (dP * (R * R - r * r)) / (4 * mu * L) * vScale
+            const vRaw = calcLaminarVelocity({ dP, R, r, mu, L, vScale, terms })
             const v = Math.min(vRaw, maxVX)
             const x = startX + v
             const y = centerY + r
@@ -263,7 +253,7 @@ export const LaminarFlow = () => {
             ctx.lineWidth = 1
             const rStep = 10
             for (let r = -R + 5; r < R; r += rStep) {
-                 const vRaw = (dP * (R * R - r * r)) / (4 * mu * L) * vScale
+                 const vRaw = calcLaminarVelocity({ dP, R, r, mu, L, vScale, terms })
                  const v = Math.min(vRaw, maxVX)
                  const x = startX + v
                  const y = centerY + r
@@ -299,63 +289,115 @@ export const LaminarFlow = () => {
     requestRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(requestRef.current)
 
-  }, [radius, pressure, viscosity, length, showVectors])
+  }, [radius, pressure, viscosity, length, showVectors, terms])
 
   return (
     <div className="p-8 max-w-[1200px] mx-auto">
       <h1 className="text-3xl font-bold mb-4">Laminar Flow Simulation</h1>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
+
+      {/* Section 1: Simplified intuition (with its own sticky controls) */}
+      <section className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
+        <div>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="text-2xl">Step 1: Simplify the idea (Q ∝ ΔP)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="prose prose-slate max-w-none">
+                <h3 className="text-xl font-bold mb-2">Notes</h3>
+                <p>
+                  On 17.12.2025, as I began learning Biophysics, I encountered for the first time how velocity varies
+                  within a pipe, which made me realize it was necessary to first simplify the flow equation to{' '}
+                  <KatexEquation tex="Q = \Delta P" /> to grasp its foundation. This helped me understand why flow rate (
+                  <KatexEquation tex="Q" />) is directly proportional to pressure difference, as shown by{' '}
+                  <KatexEquation tex="Q \propto \Delta P" />, meaning that doubling the pressure difference directly results
+                  in doubling the flow rate.
+                </p>
+              </div>
+
+              <Card className="bg-gray-50">
+                <CardContent className="p-4 text-center">
+                  <KatexEquation block tex="Q \propto \Delta P" />
+                </CardContent>
+              </Card>
+
+              <div className="leading-relaxed">
+                If we pretend flow depends <strong>only</strong> on pressure (and ignore wall friction), the fluid
+                would move like a solid block (“plug flow”) with a flat velocity profile.
+              </div>
+
+              {/* example */}
+              <div className="my-4 p-4 bg-slate-100 rounded-md">
+                <KatexEquation block tex="Q = \frac{200 \cdot \pi \cdot (0.05)^4}{8 \cdot 0.001 \cdot 10} \approx 4.9 \times 10^{-3} \text{ m}^3/\text{s}" />
+              </div>
+
+              <PlugFlowSimulation pressure={plugPressure} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <aside className="flex flex-col gap-8 lg:sticky lg:top-6 h-fit self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 1 Controls</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="plug-pressure">Pressure Difference (ΔP)</Label>
+                  <span className="text-sm font-medium">{plugPressure[0]}</span>
+                </div>
+                <Slider
+                  id="plug-pressure"
+                  min={0}
+                  max={100}
+                  value={plugPressure}
+                  onValueChange={(val) => setPlugPressure(Array.isArray(val) ? val : [val])}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </section>
+
+      {/* Section 2: Full simulation (with its own sticky controls) */}
+      <section className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
         <div>
           <Card>
             <CardContent className="p-0">
-              <canvas 
-                ref={canvasRef} 
-                width={800} 
-                height={400} 
+              <canvas
+                ref={canvasRef}
+                width={800}
+                height={400}
                 className="w-full h-auto rounded-lg bg-gray-50 border border-gray-300"
               />
             </CardContent>
           </Card>
-          
+
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="text-2xl">Poiseuille Flow</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="leading-relaxed">
-                In fluid dynamics, laminar flow is characterized by fluid particles following smooth paths in layers, 
-                with each layer moving smoothly past the adjacent layers with little or no mixing. 
-                For flow in a pipe, the velocity profile is parabolic.
-              </p>
-              
+              <span className="leading-relaxed">
+                In fluid dynamics, laminar flow is characterized by fluid particles following smooth paths in layers,
+                with each layer moving smoothly past the adjacent layers with little or no mixing. For flow in a pipe,
+                the velocity profile is parabolic.
+              </span>
+
               <Card className="bg-gray-50">
                 <CardContent className="p-4">
-                  <Equation block tex="Q = \frac{\Delta P \pi r^4}{8 \mu L}" />
+                  <KatexEquation block tex="Q = \frac{\Delta P \pi r^4}{8 \mu L}" />
                   <div className="text-center mt-4">
-                    <Equation block tex="v(r) = \frac{\Delta P}{4 \mu L} (R^2 - r^2)" />
+                    <KatexEquation block tex={velocityTex} />
                   </div>
                 </CardContent>
               </Card>
-
-              <div className="mt-8 prose prose-slate max-w-none">
-                <h3 className="text-xl font-bold mb-2">Notes</h3>
-                <p>On 17.12.2025, as I began learning Biophysics, I encountered for the first time how velocity varies within a pipe, which made me realize it was necessary to first simplify the flow equation to <Equation tex="Q = \Delta P" /> to grasp its foundation. This helped me understand why flow rate (<Equation tex="Q" />) is directly proportional to pressure difference, as shown by <Equation tex="Q \propto \Delta P" />, meaning that doubling the pressure difference directly results in doubling the flow rate.</p>
-
-                <PlugFlowSimulation />
-
-                
-                // example
-                <div className="my-4 p-4 bg-slate-100 rounded-md">
-                   <Equation block tex="Q = \frac{200 \cdot \pi \cdot (0.05)^4}{8 \cdot 0.001 \cdot 10} \approx 4.9 \times 10^{-3} \text{ m}^3/\text{s}" />
-                </div>
-                
-              </div>
             </CardContent>
           </Card>
         </div>
-        
-        <div className="flex flex-col gap-8">
+
+        <aside className="flex flex-col gap-8 lg:sticky lg:top-6 h-fit self-start">
           <Card>
             <CardHeader>
               <CardTitle>Controls</CardTitle>
@@ -366,38 +408,38 @@ export const LaminarFlow = () => {
                   <Label htmlFor="radius">Radius (R)</Label>
                   <span className="text-sm font-medium">{radius[0]}</span>
                 </div>
-                <Slider 
+                <Slider
                   id="radius"
-                  min={10} 
-                  max={100} 
-                  value={radius} 
+                  min={10}
+                  max={100}
+                  value={radius}
                   onValueChange={(...args) => {
-                    const possibleValue = args[0]; 
+                    const possibleValue = args[0]
                     if (Array.isArray(possibleValue) && typeof possibleValue[0] === 'number') {
-                        setRadius(possibleValue as number[]);
+                      setRadius(possibleValue as number[])
                     } else if (typeof possibleValue === 'number') {
-                         setRadius([possibleValue]);
+                      setRadius([possibleValue])
                     } else {
-                        // Fallback or log if unexpected
-                        const secondaryValue = args[1];
-                        if (Array.isArray(secondaryValue)) setRadius(secondaryValue as number[]);
-                        else if (typeof secondaryValue === 'number') setRadius([secondaryValue]);
+                      // Fallback or log if unexpected
+                      const secondaryValue = args[1]
+                      if (Array.isArray(secondaryValue)) setRadius(secondaryValue as number[])
+                      else if (typeof secondaryValue === 'number') setRadius([secondaryValue])
                     }
-                  }} 
+                  }}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label htmlFor="pressure">Pressure Difference (ΔP)</Label>
                   <span className="text-sm font-medium">{pressure[0]}</span>
                 </div>
-                <Slider 
+                <Slider
                   id="pressure"
-                  min={10} 
-                  max={200} 
-                  value={pressure} 
-                  onValueChange={(value) => setPressure(Array.isArray(value) ? value : [value])} 
+                  min={10}
+                  max={200}
+                  value={pressure}
+                  onValueChange={(value) => setPressure(Array.isArray(value) ? value : [value])}
                 />
               </div>
 
@@ -406,12 +448,12 @@ export const LaminarFlow = () => {
                   <Label htmlFor="viscosity">Viscosity (μ)</Label>
                   <span className="text-sm font-medium">{viscosity[0]}</span>
                 </div>
-                <Slider 
+                <Slider
                   id="viscosity"
-                  min={1} 
-                  max={50} 
-                  value={viscosity} 
-                  onValueChange={(value) => setViscosity(Array.isArray(value) ? value : [value])} 
+                  min={1}
+                  max={50}
+                  value={viscosity}
+                  onValueChange={(value) => setViscosity(Array.isArray(value) ? value : [value])}
                 />
               </div>
 
@@ -431,33 +473,45 @@ export const LaminarFlow = () => {
                   onValueChange={(value) => setLength(Array.isArray(value) ? value : [value])}
                 />
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <Label htmlFor="vectors">Show Vectors</Label>
-                <Switch 
+                <Switch
                   id="vectors"
-                  checked={showVectors} 
-                  onCheckedChange={(checked) => setShowVectors(checked)} 
+                  checked={showVectors}
+                  onCheckedChange={(checked) => setShowVectors(checked)}
                 />
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-red-50">
             <CardContent className="p-4">
               <strong className="text-sm">Variable Guide:</strong>
               <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
-                <li><Equation tex="R" />: Radius of the pipe</li>
-                <li><Equation tex="\Delta P" />: Pressure drop across length</li>
-                <li><Equation tex="\mu" />: Dynamic viscosity</li>
-                <li><Equation tex="L" />: Length of pipe segment</li>
+                <li>
+                  <KatexEquation tex="R" />: Radius of the pipe
+                </li>
+                <li>
+                  <KatexEquation tex="\Delta P" />: Pressure drop across length
+                </li>
+                <li>
+                  <KatexEquation tex="\mu" />: Dynamic viscosity
+                </li>
+                <li>
+                  <KatexEquation tex="L" />: Length of pipe segment
+                </li>
               </ul>
             </CardContent>
           </Card>
-        </div>
-      </div>
+
+          {/* Put Formula Explorer back on the right side (decoupled component) */}
+          <FormulaExplorer terms={terms} onTermsChange={setTerms} />
+        </aside>
+      </section>
+
     </div>
   )
 }

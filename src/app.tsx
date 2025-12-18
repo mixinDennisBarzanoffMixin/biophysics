@@ -1,8 +1,8 @@
-import { useState } from 'preact/hooks'
-import { LaminarFlow } from './pages/LaminarFlow'
-import { Journey } from './pages/Journey.tsx'
+import { useState } from 'react'
+import { LaminarFlow } from './views/LaminarFlow'
+import { Journey } from './views/Journey'
 import { Button } from '@/components/ui/button'
-import { VercelBlock } from './pages/Examples'
+import { VercelBlock } from './views/Examples'
 import './app.css'
 
 type Route =
