@@ -23,11 +23,28 @@ export function LaminarFlowSimulation({
 
   useEffect(() => {
     particlesRef.current = Array.from({ length: 300 }, () => ({
-      x: Math.random() * 800,
+      x: Math.random() * (canvasRef.current?.parentElement?.clientWidth ?? 800),
       y: (Math.random() - 0.5) * 2 * radius[0],
       r: (Math.random() - 0.5) * radius[0],
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resize = () => {
+      const parentWidth = canvas.parentElement?.clientWidth ?? 900
+      const width = Math.max(360, Math.min(parentWidth, 1200))
+      const height = 360
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
+    }
+
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
   }, [])
 
   useEffect(() => {
@@ -57,7 +74,7 @@ export function LaminarFlowSimulation({
 
       // Draw Pipe Walls
       ctx.strokeStyle = '#333'
-      ctx.lineWidth = 4
+      ctx.lineWidth = 5
       ctx.beginPath()
       ctx.moveTo(pipeX0, centerY - R)
       ctx.lineTo(pipeX1, centerY - R)
@@ -170,9 +187,9 @@ export function LaminarFlowSimulation({
       <CardContent className="p-0">
         <canvas
           ref={canvasRef}
-          width={800}
-          height={400}
-          className="w-full h-auto rounded-lg bg-gray-50 border border-gray-300"
+          width={900}
+          height={360}
+          className="w-full h-[360px] rounded-lg bg-gray-50 border border-gray-300"
         />
       </CardContent>
     </Card>

@@ -8,10 +8,28 @@ export function PlugFlowSimulation({ pressure }: { pressure: number[] }) {
   const particlesRef = useRef<Array<{ x: number; y: number }>>([])
 
   useEffect(() => {
+    const baseWidth = canvasRef.current?.parentElement?.clientWidth ?? 800
     particlesRef.current = Array.from({ length: 500 }, () => ({
-      x: Math.random() * 800,
+      x: Math.random() * baseWidth,
       y: Math.random() * 150, // fixed height
     }))
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resize = () => {
+      const parentWidth = canvas.parentElement?.clientWidth ?? 800
+      const width = Math.max(360, Math.min(parentWidth, 1200))
+      const height = 240
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
+    }
+
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
   }, [])
 
   useEffect(() => {
@@ -24,13 +42,13 @@ export function PlugFlowSimulation({ pressure }: { pressure: number[] }) {
       const width = canvas.width
       const height = canvas.height
       const centerY = height / 2
-      const pipeHeight = 150
+      const pipeHeight = Math.max(160, Math.min(height * 0.7, 220))
 
       ctx.clearRect(0, 0, width, height)
 
       // Draw Pipe
       ctx.strokeStyle = '#333'
-      ctx.lineWidth = 4
+      ctx.lineWidth = 5
       ctx.beginPath()
       ctx.moveTo(0, centerY - pipeHeight / 2)
       ctx.lineTo(width, centerY - pipeHeight / 2)
@@ -54,7 +72,7 @@ export function PlugFlowSimulation({ pressure }: { pressure: number[] }) {
         if (p.x > width) p.x = 0
 
         ctx.beginPath()
-        ctx.arc(p.x, centerY - pipeHeight / 2 + p.y, 3, 0, Math.PI * 2)
+        ctx.arc(p.x, centerY - pipeHeight / 2 + p.y, 4, 0, Math.PI * 2)
         ctx.fill()
       })
 
@@ -84,7 +102,7 @@ export function PlugFlowSimulation({ pressure }: { pressure: number[] }) {
         </span>
       </CardHeader>
       <CardContent>
-        <canvas ref={canvasRef} width={800} height={200} className="w-full h-[200px] rounded-lg bg-slate-50 mb-6" />
+        <canvas ref={canvasRef} width={900} height={240} className="w-full h-[240px] rounded-lg bg-slate-50 mb-6" />
       </CardContent>
     </Card>
   )

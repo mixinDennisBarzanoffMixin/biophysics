@@ -28,7 +28,7 @@ export const LaminarFlow = () => {
   const velocityTex = buildVelocityTex(terms)
 
   return (
-    <div className="p-8 max-w-[1200px] mx-auto">
+    <div className="px-4 py-6 sm:px-6 lg:px-10 max-w-[1200px] mx-auto">
       <h1 className="text-3xl font-bold mb-4">Laminar Flow Simulation</h1>
 
       {/* Section 1: Simplified intuition (with its own sticky controls) */}
