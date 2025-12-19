@@ -30,17 +30,17 @@ export const LaminarFlow = () => {
   const velocityTex = buildVelocityTex(terms)
 
   return (
-    <div className="py-6 sm:px-6 lg:px-10">
+    <div className="py-6 sm:px-6 lg:px-10 text-base leading-relaxed md:text-lg">
       <h1 className="text-3xl font-bold mb-4">Laminar Flow Simulation</h1>
 
       {/* Section 1: Simplified intuition (with its own sticky controls) */}
       <section className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
         <div>
-          <Card className="mb-8">
+          <Card className="mb-8 text-base md:text-lg">
             <CardHeader>
               <CardTitle className="text-2xl">Step 1: Simplify the idea <KatexEquation tex="Q \propto \Delta P" /></CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 leading-relaxed">
               <div className="prose prose-slate max-w-none">
                 <h3 className="text-xl font-bold mb-2">Notes</h3>
                 <span>
@@ -54,7 +54,7 @@ export const LaminarFlow = () => {
               </div>
 
               <Card className="bg-gray-50 overflow-x-auto">
-                <CardContent className="p-4 text-center">
+                <CardContent className="p-4 text-center text-base md:text-lg">
                   <KatexEquation block tex="Q \propto \Delta P" />
                 </CardContent>
               </Card>
@@ -103,20 +103,20 @@ export const LaminarFlow = () => {
       {/* Section 2: Full simulation (with its own sticky controls) */}
       <section className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
         <div>
-          <Card className="mb-8">
+          <Card className="mb-8 text-base md:text-lg">
             <CardHeader>
               <CardTitle className="text-2xl">Poiseuille Flow</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 leading-relaxed">
               <Accordion className="w-full">
                 <AccordionItem value="details" className="border rounded-lg bg-blue-50/30 overflow-hidden px-4">
-                  <AccordionTrigger className="text-base font-semibold text-blue-700 hover:no-underline py-4">
+                  <AccordionTrigger className="text-base md:text-lg font-semibold text-blue-700 hover:no-underline py-4">
                     <div className="flex items-center gap-2">
                       <InfoIcon className="size-5" />
                       <span>Deep Dive: Understanding the Velocity Profile (19.12.2025)</span>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="text-base text-foreground pb-6">
+                  <AccordionContent className="text-base md:text-lg text-foreground pb-6">
                     <div className="space-y-4 pt-2">
                       <span className="leading-relaxed">
                         The Poiseuille flow equation is actually quite simple to understand, although hard to derive. 
@@ -161,13 +161,13 @@ export const LaminarFlow = () => {
 
               <Accordion className="w-full">
                 <AccordionItem value="details" className="border rounded-lg bg-blue-50/30 overflow-hidden px-4">
-                  <AccordionTrigger className="text-base font-semibold text-blue-700 hover:no-underline py-4">
+                  <AccordionTrigger className="text-base md:text-lg font-semibold text-blue-700 hover:no-underline py-4">
                     <div className="flex items-center gap-2">
                       <InfoIcon className="size-5" />
                       <span>Deep Dive: Understanding the <KatexEquation tex="R^2" /> term for the pipe radius (19.12.2025)</span>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="text-base text-foreground pb-6">
+                  <AccordionContent className="text-base md:text-lg text-foreground pb-6 leading-relaxed">
                     The reason the <KatexEquation tex="R" /> is squared is because as the pipe gets bigger, for the same <KatexEquation tex='\Delta P' /> 
                     the velocity would not just get linearly faster at the center, it would be exponentially increased.
                     For example if we have the velocity for <KatexEquation tex="R = 2" /> and <KatexEquation tex="R = 4" />, we would get:
