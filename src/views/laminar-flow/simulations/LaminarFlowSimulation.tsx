@@ -22,7 +22,7 @@ export function LaminarFlowSimulation({
   const particlesRef = useRef<Array<{ x: number; y: number; r: number }>>([])
 
   useEffect(() => {
-    particlesRef.current = Array.from({ length: 300 }, () => ({
+    particlesRef.current = Array.from({ length: 600 }, () => ({
       x: Math.random() * (canvasRef.current?.parentElement?.clientWidth ?? 800),
       y: (Math.random() - 0.5) * 2 * radius[0],
       r: (Math.random() - 0.5) * radius[0],
@@ -92,7 +92,7 @@ export function LaminarFlowSimulation({
       // Particles
       ctx.fillStyle = '#f87171'
       if (particlesRef.current.length === 0) {
-        particlesRef.current = Array.from({ length: 300 }, () => ({
+        particlesRef.current = Array.from({ length: 600 }, () => ({
           x: pipeX0 + Math.random() * pipePx,
           y: 0,
           r: (Math.random() * 2 - 1) * R,
