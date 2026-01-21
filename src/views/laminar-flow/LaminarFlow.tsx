@@ -4,6 +4,7 @@ import { KatexEquation } from '@/components/KatexEquation'
 import { type FormulaTerms, buildVelocityTex } from '@/lib/laminar-formula'
 import { PlugFlowSimulation } from '@/views/laminar-flow/simulations/PlugFlowSimulation'
 import { LaminarFlowSimulation } from '@/views/laminar-flow/simulations/LaminarFlowSimulation'
+import { LaminarFlow3D } from '@/views/laminar-flow/simulations/LaminarFlow3D'
 import { PlugFlowControls } from '@/views/laminar-flow/controls/PlugFlowControls'
 import { LaminarFlowControls } from '@/views/laminar-flow/controls/LaminarFlowControls'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -239,8 +240,50 @@ export const LaminarFlow = () => {
           />
         </aside>
       </section>
+    
+    {/* Section 3: 3D Visualization (with its own sticky controls) */}
+    <section className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
+      <div>
+        <Card className="mb-8 text-base md:text-lg">
+          <CardHeader>
+            <CardTitle className="text-2xl">Step 3: 3D Visualization — GPU Particle Flow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-slate max-w-none mb-6">
+              <p>
+                21.01.2026: I played around to try to make it 3D on the GPU in OpenGL. I made the particles darker towards the
+                center to emulate a shadow.
+              </p>
+              <div className="text-blue-600 font-mono text-sm not-italic">GPU-Powered! Resize or move for full effect. 🧬</div>
+            </div>
+            <LaminarFlow3D
+              radius={radius[0]}
+              pressure={pressure[0]}
+              viscosity={viscosity[0]}
+              length={length[0]}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <aside className="flex flex-col gap-8 lg:sticky lg:top-20 h-fit self-start">
+        <LaminarFlowControls
+          radius={radius}
+          onRadiusChange={setRadius}
+          pressure={pressure}
+          onPressureChange={setPressure}
+          viscosity={viscosity}
+          onViscosityChange={setViscosity}
+          length={length}
+          onLengthChange={setLength}
+          showVectors={showVectors}
+          onShowVectorsChange={setShowVectors}
+          terms={terms}
+          onTermsChange={setTerms}
+        />
+      </aside>
+    </section>
 
     </div>
   )
 }
-
