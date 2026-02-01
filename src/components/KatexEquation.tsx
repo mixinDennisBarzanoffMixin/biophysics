@@ -13,7 +13,7 @@ export function KatexEquation({ tex, block = false }: { tex: string; block?: boo
   }, [tex, block])
 
   return (
-    <div
+    <span
       ref={ref}
       className={
         block
