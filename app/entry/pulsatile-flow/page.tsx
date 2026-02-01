@@ -14,7 +14,7 @@ export default function PulsatileFlowPage() {
 
   // State for First Simulation (Oscillating only)
   const [oscPeriod, setOscPeriod] = useState([1.5])
-  const [oscAmplitude, setOscAmplitude] = useState([1.0])
+  const [oscAmplitude, setOscAmplitude] = useState([0.8])
 
   // State for Second Simulation (Combined)
   const [combRadius, setCombRadius] = useState([100])
@@ -22,7 +22,7 @@ export default function PulsatileFlowPage() {
   const [combViscosity, setCombViscosity] = useState([10])
   const [combLength, setCombLength] = useState([50])
   const [combPeriod, setCombPeriod] = useState([1.5])
-  const [combAmplitude, setCombAmplitude] = useState([1.0])
+  const [combAmplitude, setCombAmplitude] = useState([0.6])
   
   const [combTerms, setCombTerms] = useState<FormulaTerms>({
     pressure: true,
@@ -44,9 +44,20 @@ export default function PulsatileFlowPage() {
       <div className="max-w-[1400px] mx-auto space-y-16">
         <div className="max-w-[900px]">
           <h1 className="text-3xl font-bold mb-2">Pulsatile Flow / Heartbeat</h1>
-          <p className="text-slate-600 text-lg">
-            Blood flow is driven by the pumping heart, creating a pulsatile velocity profile.
+          <p className="text-slate-600 text-lg mb-6">
+            Modeling hemodynamics by modulating pressure over time (COMSOL approach).
           </p>
+          
+          <div className="border rounded-lg overflow-hidden mb-8 shadow-sm">
+            <div className="bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-500 uppercase border-b">
+              Reference: COMSOL blood_flow.mph Parameters
+            </div>
+            <img 
+              src="/piecewise.png" 
+              alt="COMSOL Piecewise Functions" 
+              className="w-full max-w-[600px] mx-auto"
+            />
+          </div>
         </div>
 
         {/* Section 1: The Oscillating Component */}
@@ -55,7 +66,7 @@ export default function PulsatileFlowPage() {
             <div>
               <h2 className="text-xl font-semibold mb-4">1. The Oscillating Component</h2>
               <p className="mb-4 text-slate-700">
-                This represents the <em>changes</em> in velocity due to the heart's cycle. Notice how the fluid follows a parabolic profile—just like in the Laminar Flow chapter—but it oscillates back and forth.
+                Instead of moving particles manually, we oscillate the <strong>Pressure Difference</strong> <KatexEquation tex="\Delta P" /> around zero. This is a "Fourier-honest" pulse that creates a smooth, continuous sloshing motion.
               </p>
               
               <PulsatileFlowSimulation 
@@ -66,11 +77,12 @@ export default function PulsatileFlowPage() {
               
               <div className="mt-4 prose prose-slate max-w-none">
                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm">
-                    <p className="font-semibold mb-1">Velocity Profile <KatexEquation tex="v_{osc}(r, t)" />:</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                      <li><KatexEquation tex="v(r, t) = \left(1 - \left(\frac{r}{R}\right)^2\right) \cdot \text{Pulse}(t)" /></li>
-                    </ul>
-                    <p className="mt-2 text-slate-500">The pulse shape uses the sin/cos piecewise logic shown in the graph below.</p>
+                    <p className="font-semibold mb-2">Pressure Pulse Function:</p>
+                    <KatexEquation 
+                      tex="\Delta P(t) = \alpha \cdot (0.7\cos(\omega t) + 0.3\cos(2\omega t))"
+                      block 
+                    />
+                    <p className="mt-2 text-slate-500 text-xs">This asymmetry mimics the heart's contraction (systole) and relaxation (diastole).</p>
                 </div>
               </div>
             </div>
@@ -90,12 +102,9 @@ export default function PulsatileFlowPage() {
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 items-start">
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold mb-4">2. Combined Flow (Oscillating + Steady)</h2>
+              <h2 className="text-xl font-semibold mb-4">2. Combined Flow (Steady + Pulse)</h2>
               <p className="mb-4 text-slate-700">
-                Real blood flow is a combination of this oscillating heartbeat component <em>plus</em> the steady pressure gradient.
-              </p>
-              <p className="mb-4 text-slate-700">
-                When we add them together, we see the characteristic "pulsatile" forward motion. You can toggle the individual Poiseuille terms on the right to see how they affect the mean flow velocity.
+                The most realistic model: A steady mean pressure gradient modulated by a periodic pulse. The velocity profile follows the Poiseuille law at every instant.
               </p>
               
               <PulsatileFlowSimulation 
@@ -111,11 +120,14 @@ export default function PulsatileFlowPage() {
               
               <div className="mt-4 prose prose-slate max-w-none">
                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm">
-                    <p className="font-semibold mb-2">Total Velocity:</p>
+                    <p className="font-semibold mb-2">Total Modulated Pressure:</p>
                     <KatexEquation 
-                      tex="v_{total}(r, t) = \underbrace{\frac{\Delta P}{4 \mu L} (R^2 - r^2)}_{\text{Steady}} + \underbrace{v_{osc}(r, t)}_{\text{Heartbeat}}" 
+                      tex="\Delta P_{total}(t) = \Delta P_{steady} \cdot (1 + \text{Pulse}(t))"
                       block 
                     />
+                    <p className="mt-2 text-xs text-slate-500">
+                      We also apply a <strong>Smooth Ramp</strong> <KatexEquation tex="1 - e^{-t/\tau}" /> to prevent discontinuities at simulation startup.
+                    </p>
                 </div>
               </div>
             </div>
